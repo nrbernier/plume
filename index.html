@@ -296,7 +296,7 @@ function buildTpl(text,k){
   for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(bin[y*w+x]){
     let n=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)if((dx||dy)&&bin[(y+dy)*w+x+dx])n++;
     const p=[m.x0+(x+.5)/G,m.y0+(y+.5)/G,part[y*w+x]];sk.push(p);if(n===1)ends.push(p)}
-  const body=ends.filter(p=>p[1]>-1.2),cand=body.length?body:ends.length?ends:sk;let start=cand[0]||[m.xs,0];
+  const body=ends.filter(p=>p[1]>-1.2&&p[1]<.45),cand=body.length?body:ends.length?ends:sk;let start=cand[0]||[m.xs,0];
   for(const p of cand)if(p[0]<start[0]-.02||(Math.abs(p[0]-start[0])<.02&&p[1]>start[1]))start=p;
   // word-initial round letters have no lead-in: they start at the top right of the bowl, going anticlockwise
   const ch=lower(text[k]),initial=k===0||!writable(text[k-1]),round=initial&&'acdgoqàâô'.includes(ch);
@@ -314,7 +314,9 @@ function buildTpl(text,k){
   if(round)nb=nb.filter(p=>p[0]<start[0]-.02);
   if(initial&&ch==='t')nb=nb.filter(p=>p[1]>start[1]+.05);
   let dir=null;if(nb.length){const v=[nb.reduce((a,p)=>a+p[0],0)/nb.length-start[0],nb.reduce((a,p)=>a+p[1],0)/nb.length-start[1]],n=Math.hypot(...v);if(n>.01)dir=[v[0]/n,v[1]/n]}
-  const order=orderStrokes(bin,w,h,m,start,dir,ch==='t');
+  const RT=ROUTES[ch];if(RT&&RT.s&&initial)start=[m.xs+RT.s[0],RT.s[1]];
+  const order=orderStrokes(bin,w,h,m,start,dir,ch==='t',RT&&RT.r.map(q=>q&&[m.xs+q[0],q[1]]));
+  {const f=order[0];if(f&&f.length>3){const q=f[Math.min(9,f.length-1)];const v=[q[0]-f[0][0],q[1]-f[0][1]],n=Math.hypot(...v);if(n>.05)dir=[v[0]/n,v[1]/n]}start=f?f[0]:start}
   const anim=order.map(s=>{const r=s.length>1?resample([s],.04):[s[0],s[0]];const cum=[0];for(let i=1;i<r.length;i++)cum.push(cum[i-1]+Math.hypot(r[i][0]-r[i-1][0],r[i][1]-r[i-1][1]));return {p:r,cum,L:Math.max(cum[cum.length-1],.05)}});
   const big=new Set(area.map((a,i)=>a>=6?i:-1).filter(i=>i>=0));
   const pts=spaced(sk,.06),dots=spaced(sk,.17);
@@ -323,10 +325,22 @@ function buildTpl(text,k){
   cache.set(key,t);return t;
 }
 
+/* hand-checked routes for letters whose pen path the walk below gets wrong:
+   points the pen must pass through, in letter units (x from the letter's start, y from the baseline, up is negative);
+   null = lift the pen; s = where a word-initial letter starts. Loops go up their right-hand side first. */
+const ROUTES={
+  b:{r:[[.6,-1.4],[.27,-1.4],[.5,-.02],[.95,-.5],[.85,-.9]]},
+  f:{r:[[.55,-1.4],[.28,-1.4],[.28,1],[.5,1.75],[.62,1],[.45,.1],[.3,-.35],[.55,-.4]]},
+  h:{r:[[.6,-1.4],[.27,-1.4],[.27,-.05],[.3,-.9],[.65,-.95],[1,-.4],[1.2,-.1]]},
+  k:{r:[[.6,-1.4],[.27,-1.4],[.27,-.05],[.27,-.9],[.7,-.95],[.88,-.75],[.6,-.55],[.36,-.5],[.75,-.25],[1.05,-.05]]},
+  l:{r:[[.6,-1.4],[.27,-1.4],[.45,-.02]]},
+  p:{s:[.2,-.98],r:[[.2,1.5],[.22,-.9],[.7,-.95],[.92,-.5],[1.15,-.1]]},
+  x:{s:[.12,-.75],r:[[.4,-1],[.6,-.55],[.3,-.08],[.15,-.18],null,[.95,-.85],[.75,-.95],[.6,-.5],[.75,-.05],[1.15,-.2]]},
+  z:{s:[.12,-.88],r:[[.45,-1],[.62,-.75],[.35,-.3],[.6,-.1],[.62,1],[.5,1.75],[.2,1.1],[.45,.3],[.9,-.12]]}};
 /* stroke order: walk the skeleton pixel by pixel from the start, going as straight as possible,
    retracing over drawn ink to reach what is left (stems of a, d, crossings of loops),
    and lifting the pen for separate parts (dots, accents, the bar of t) */
-function orderStrokes(bin,w,h,m,start,dir0,liftLong){
+function orderStrokes(bin,w,h,m,start,dir0,liftLong,route){
   const N=w*h,pix=[];for(let i=0;i<N;i++)if(bin[i])pix.push(i);if(!pix.length)return [];
   const OFF=[[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
   const nb=i=>{const x=i%w,y=(i/w)|0,o=[];for(const [dx,dy] of OFF){const nx=x+dx,ny=y+dy;if(nx>=0&&ny>=0&&nx<w&&ny<h&&bin[ny*w+nx])o.push(ny*w+nx)}return o};
@@ -338,6 +352,19 @@ function orderStrokes(bin,w,h,m,start,dir0,liftLong){
   let left=pix.length-1;
   const step=q=>{for(const r of nb(c))if(!vis[r]&&nb(r).includes(q)&&r!==q){vis[r]=1;left--}  // swallow staircase twins
     if(!vis[q]){vis[q]=1;left--}path.push(q);c=q;d=dirOf()};
+  if(route){
+    const snap=pt=>{const x=(pt[0]-m.x0)*G-.5,y=(pt[1]-m.y0)*G-.5;let b=-1,bd=(.35*G)**2;for(const i of pix){const e=(X(i)-x)**2+(Y(i)-y)**2;if(e<bd){bd=e;b=i}}return b};
+    const way=(a,t)=>{const dist=new Map([[a,0]]),prev=new Map(),open=new Set([a]);   // cheapest path, avoiding drawn ink
+      while(open.size){let u=-1,du=1e9;for(const q of open){const v=dist.get(q);if(v<du){du=v;u=q}}open.delete(u);if(u===t)break;
+        for(const r of nb(u)){const v=du+(X(r)!==X(u)&&Y(r)!==Y(u)?1.41:1)*(vis[r]?4:1);if(v<(dist.get(r)??1e9)){dist.set(r,v);prev.set(r,u);open.add(r)}}}
+      if(!prev.has(t))return null;const out=[];for(let v=t;v!==a;v=prev.get(v))out.unshift(v);return out};
+    for(const pt of route){
+      if(pt===null){strokes.push(path);path=null;continue}
+      const t=snap(pt);if(t<0)continue;
+      if(path===null){path=[t];c=t;d=null;if(!vis[t]){vis[t]=1;left--}continue}
+      const wy=way(c,t);if(wy)for(const q of wy)step(q)}
+    if(path===null){path=[c]}
+  }
   for(let guard=0;guard<5000&&left>0;guard++){
     const fr=nb(c).filter(q=>!vis[q]);
     if(fr.length){let best=fr[0],bs=-9;for(const q of fr){const u=unit(X(q)-X(c),Y(q)-Y(c)),sc=d?u[0]*d[0]+u[1]*d[1]:-u[0]+(Y(q)-Y(c))*.01;if(sc>bs){bs=sc;best=q}}
