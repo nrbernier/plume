@@ -20,4 +20,4 @@ which inlines the font into `index.html`. Serve with GitHub Pages from the repo 
 
 ## Font
 
-[Playwrite FR Moderne](https://fonts.google.com/specimen/Playwrite+FR+Moderne) (via Fontsource), SIL Open Font License 1.1 — see `fonts/OFL.txt`.
+[Playwrite FR Trad](https://fonts.google.com/specimen/Playwrite+FR+Trad) (traditional French school cursive) (via Fontsource), SIL Open Font License 1.1 — see `fonts/OFL.txt`.
