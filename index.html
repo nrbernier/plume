@@ -314,7 +314,7 @@ function buildTpl(text,k){
   if(round)nb=nb.filter(p=>p[0]<start[0]-.02);
   if(initial&&ch==='t')nb=nb.filter(p=>p[1]>start[1]+.05);
   let dir=null;if(nb.length){const v=[nb.reduce((a,p)=>a+p[0],0)/nb.length-start[0],nb.reduce((a,p)=>a+p[1],0)/nb.length-start[1]],n=Math.hypot(...v);if(n>.01)dir=[v[0]/n,v[1]/n]}
-  const RT=ROUTES[ch];if(RT&&RT.s&&initial)start=[m.xs+RT.s[0],RT.s[1]];
+  const RT=ROUTES[ch]||ROUTES[{'ë':'e','é':'e','è':'e','ê':'e','à':'a','â':'a','ù':'u','û':'u','î':'i','ï':'i','ô':'o'}[ch]]||null;if(RT&&RT.s&&initial)start=[m.xs+RT.s[0],RT.s[1]];
   const order=orderStrokes(bin,w,h,m,start,dir,ch==='t',RT&&RT.r.map(q=>q&&q!=='top'?[m.xs+q[0],q[1]]:q));
   {const f=order[0];if(f&&f.length>3){const q=f[Math.min(9,f.length-1)];const v=[q[0]-f[0][0],q[1]-f[0][1]],n=Math.hypot(...v);if(n>.05)dir=[v[0]/n,v[1]/n]}start=f?f[0]:start}
   const anim=order.map(s=>{const r=s.length>1?resample([s],.04):[s[0],s[0]];const cum=[0];for(let i=1;i<r.length;i++)cum.push(cum[i-1]+Math.hypot(r[i][0]-r[i-1][0],r[i][1]-r[i-1][1]));return {p:r,cum,L:Math.max(cum[cum.length-1],.05)}});
@@ -329,14 +329,26 @@ function buildTpl(text,k){
    points the pen must pass through, in letter units (x from the letter's start, y from the baseline, up is negative);
    null = lift the pen; s = where a word-initial letter starts. Loops go up their right-hand side first. */
 const ROUTES={
+  a:{s:[.78,-.95],r:[[.49,-1],[.21,-.5],[.5,-.1],[.9,-.35],[.9,-.92],[.9,-.3],[1.17,-.08]]},
+  d:{s:[.78,-.97],r:[[.49,-1],[.21,-.5],[.5,-.1],[.9,-.35],[.9,-1.2],'top',[.9,-.3],[1.17,-.08]]},
   b:{r:[[.6,-1.4],'top',[.27,-1.4],[.5,-.02],[.95,-.5],[.85,-.9]]},
   f:{r:[[.55,-1.4],'top',[.28,-1.4],[.28,1],[.5,1.75],[.62,1],[.45,.1],[.3,-.35],[.55,-.4]]},
   h:{r:[[.6,-1.4],'top',[.27,-1.4],[.27,-.05],[.3,-.9],[.65,-.95],[1,-.4],[1.2,-.1]]},
-  k:{r:[[.6,-1.4],'top',[.27,-1.4],[.27,-.05],[.27,-.9],[.7,-.95],[.88,-.75],[.6,-.55],[.36,-.5],[.75,-.25],[1.05,-.05]]},
+  k:{r:[[.6,-1.4],'top',[.3,-1.4],[.3,-.15],[.3,-.9],[.7,-.92],[.88,-.75],[.6,-.5],[.36,-.4],[.65,-.3],[.85,-.1],[1.05,-.08]]},
   l:{r:[[.6,-1.4],'top',[.27,-1.4],[.45,-.02]]},
-  p:{s:[.2,-.98],r:[[.2,1.5],[.22,-.9],[.7,-.95],[.92,-.5],[1.15,-.1]]},
-  x:{s:[.12,-.75],r:[[.4,-1],[.6,-.55],[.3,-.08],[.15,-.18],null,[.95,-.85],[.75,-.95],[.6,-.5],[.75,-.05],[1.15,-.2]]},
-  z:{s:[.12,-.88],r:[[.45,-1],[.62,-.75],[.35,-.3],[.6,-.1],[.62,1],[.5,1.75],[.2,1.1],[.45,.3],[.9,-.12]]}};
+  i:{s:[.26,-.88],r:[[.26,-.85],[.26,-.3],[.49,-.1]]},
+  j:{s:[.3,-.88],r:[[.3,-.85],[.3,1.5],[0,1.72],[-.2,1.2],[.15,.5],[.3,.15],[.53,.06]]},
+  n:{r:[[.3,-.15],[.3,-.8],[.6,-.92],[1.03,-.4],[1.21,-.1]]},
+  m:{r:[[.3,-.15],[.3,-.8],[.67,-1],[.99,-.4],[.99,-.15],[.99,-.8],[1.3,-.92],[1.67,-.4],[1.85,-.1]]},
+  p:{s:[.26,-.85],r:[[.26,-.82],[.26,1.6],[.26,-.8],[.67,-1],[.97,-.6],[.94,-.2],[1.21,-.08]]},
+  s:{s:[-.06,-.08],r:[[.25,-.5],[.4,-1.03],[.6,-.65],[.85,-.3],[.5,-.1],[.2,-.15]]},
+  u:{s:[.26,-.88],r:[[.26,-.85],[.26,-.3],[.6,-.1],[.94,-.4],[.94,-.88],[.94,-.3],[1.21,-.08]]},
+  y:{s:[.26,-.88],r:[[.26,-.85],[.26,-.3],[.6,-.1],[.94,-.4],[.94,-.88],[.94,.4],[.94,1.5],[.7,1.72],[.44,1.3],[.6,.7],[.85,.45],[1.1,.1],[1.21,0]]},
+  w:{r:[[.26,-.9],[.3,-.4],[.5,-.1],[.9,-.4],[.9,-.88],[.9,-.3],[1.15,-.1],[1.53,-.6],[1.44,-.94]]},
+  x:{s:[.17,-.71],r:[[.45,-1],[.71,-.6],[.6,-.2],[.26,-.08],null,[1.21,-.76],[.99,-1],[.71,-.6],[.85,-.1],[1.21,-.21]]},
+  z:{s:[.21,-.85],r:[[.67,-.9],[.55,-.45],[.3,-.3],[.55,-.3],[.65,-.1],[.76,.6],[.6,1.7],[.21,1.3],[.35,.6],[.6,.3],[.8,0],[.94,-.08]]},
+  'ç':{s:[.85,-.85],r:[[.5,-1],[.17,-.5],[.45,-.1],[.8,-.12],null,[.53,0],[.67,.25],[.4,.42]]},
+  'œ':{s:[.75,-.92],r:[[.5,-1],[.21,-.5],[.5,-.12],[.9,-.25],[.94,-.6],[.85,-.85],[.94,-.5],[1.08,-.33],[1.35,-.5],[1.44,-.78],[1.2,-.9],[.99,-.8],[1.12,-.2],[1.45,-.1],[1.67,-.21]]}};
 /* stroke order: walk the skeleton pixel by pixel from the start, going as straight as possible,
    retracing over drawn ink to reach what is left (stems of a, d, crossings of loops),
    and lifting the pen for separate parts (dots, accents, the bar of t) */
@@ -347,47 +359,46 @@ function orderStrokes(bin,w,h,m,start,dir0,liftLong,route){
   const X=i=>i%w,Y=i=>(i/w)|0,unit=(x,y)=>{const l=Math.hypot(x,y)||1;return [x/l,y/l]};
   const sx=(start[0]-m.x0)*G-.5,sy=(start[1]-m.y0)*G-.5;let sp=pix[0],bd=1e9;
   for(const i of pix){const d=(X(i)-sx)**2+(Y(i)-sy)**2;if(d<bd){bd=d;sp=i}}
-  const vis=new Uint8Array(N),strokes=[];let path=[sp],c=sp,d=dir0?[dir0[0],dir0[1]]:null;vis[sp]=1;
+  const vis=new Uint8Array(N),strokes=[];let path=null,c=sp,d=dir0?[dir0[0],dir0[1]]:null;
   const dirOf=()=>{const a=path[Math.max(0,path.length-6)];return path.length>2?unit(X(c)-X(a),Y(c)-Y(a)):d};
-  let left=pix.length-1;
-  const step=q=>{for(const r of nb(c))if(!vis[r]&&nb(r).includes(q)&&r!==q){vis[r]=1;left--}  // swallow staircase twins
-    if(!vis[q]){vis[q]=1;left--}path.push(q);c=q;d=dirOf()};
+  const step=q=>{for(const r of nb(c))if(!vis[r]&&nb(r).includes(q)&&r!==q)vis[r]=1;  // swallow staircase twins
+    vis[q]=1;path.push(q);c=q;d=dirOf()};
+  const partOf=i0=>{const out=[i0],sn=new Set(out);for(let k=0;k<out.length;k++)for(const r of nb(out[k]))if(!sn.has(r)){sn.add(r);out.push(r)}return out};
   if(route){
     const snap=pt=>{const x=(pt[0]-m.x0)*G-.5,y=(pt[1]-m.y0)*G-.5;let b=-1,bd=(.35*G)**2;for(const i of pix){const e=(X(i)-x)**2+(Y(i)-y)**2;if(e<bd){bd=e;b=i}}return b};
     const way=(a,t)=>{const dist=new Map([[a,0]]),prev=new Map(),open=new Set([a]);   // cheapest path, avoiding drawn ink
       while(open.size){let u=-1,du=1e9;for(const q of open){const v=dist.get(q);if(v<du){du=v;u=q}}open.delete(u);if(u===t)break;
         for(const r of nb(u)){const v=du+(X(r)!==X(u)&&Y(r)!==Y(u)?1.41:1)*(vis[r]?4:1);if(v<(dist.get(r)??1e9)){dist.set(r,v);prev.set(r,u);open.add(r)}}}
       if(!prev.has(t))return null;const out=[];for(let v=t;v!==a;v=prev.get(v))out.unshift(v);return out};
+    path=[sp];vis[sp]=1;const touched=new Set([sp]);
     for(const pt of route){
-      if(pt===null){strokes.push(path);path=null;continue}
-      const t=pt==='top'?pix.reduce((a,q)=>Y(q)<Y(a)?q:a):snap(pt);if(t<0)continue;
-      if(path===null){path=[t];c=t;d=null;if(!vis[t]){vis[t]=1;left--}continue}
+      if(pt===null){if(path.length)strokes.push(path);path=null;continue}
+      const t=pt==='top'?pix.filter(q=>partOf(sp).includes(q)).reduce((a,q)=>Y(q)<Y(a)?q:a):snap(pt);if(t<0)continue;touched.add(t);
+      if(path===null){path=[t];c=t;d=null;vis[t]=1;continue}
       const wy=way(c,t);if(wy)for(const q of wy)step(q)}
-    if(path===null){path=[c]}
-  }
-  for(let guard=0;guard<5000&&left>0;guard++){
+    if(path&&path.length)strokes.push(path);path=null;
+    for(const t of touched)for(const q of partOf(t))vis[q]=1;   // the route owns its parts
+  }else{path=[sp];vis[sp]=1}
+  for(let guard=0;guard<5000;guard++){
+    if(path===null){ // pen lift: next separate part (dot, accent, bar…), left to right, from its left end
+      const rest=pix.filter(i=>!vis[i]);if(!rest.length)break;
+      const mnx=Math.min(...rest.map(X)),part=partOf(rest.find(i=>X(i)===mnx)).filter(q=>!vis[q]),sn=new Set(part);
+      const ends=part.filter(q=>nb(q).filter(r=>sn.has(r)).length<=1),pool=ends.length?ends:part;
+      const s0=pool.reduce((a,q)=>X(q)<X(a)||(X(q)===X(a)&&Y(q)>Y(a))?q:a);
+      path=[s0];c=s0;d=null;vis[s0]=1;continue}
     const fr=nb(c).filter(q=>!vis[q]);
     if(fr.length){let best=fr[0],bs=-9;for(const q of fr){const u=unit(X(q)-X(c),Y(q)-Y(c)),sc=d?u[0]*d[0]+u[1]*d[1]:-u[0]+(Y(q)-Y(c))*.01;if(sc>bs){bs=sc;best=q}}
       step(best);continue}
     // drop leftover crumbs (1–3 px) that sit against drawn ink
     {const seen=new Uint8Array(N);for(const i of pix){if(vis[i]||seen[i])continue;const cc=[],st=[i];seen[i]=1;
       while(st.length){const q=st.pop();cc.push(q);for(const r of nb(q))if(!vis[r]&&!seen[r]){seen[r]=1;st.push(r)}}
-      if(cc.length<4&&cc.some(q=>nb(q).some(r=>vis[r]))){for(const q of cc){vis[q]=1;left--}}}}
-    if(left<=0)break;
+      if(cc.length<4&&cc.some(q=>nb(q).some(r=>vis[r])))for(const q of cc)vis[q]=1}}
     // retrace through drawn pixels to the nearest undrawn one, if connected
     const prev=new Int32Array(N).fill(-1),st=[c];prev[c]=c;let tgt=-1;
     for(let h2=0;h2<st.length&&tgt<0;h2++){const q=st[h2];for(const r of nb(q)){if(prev[r]>=0)continue;prev[r]=q;if(!vis[r]){tgt=r;break}st.push(r)}}
     if(tgt>=0){const ch=[];for(let v=tgt;v!==c;v=prev[v])ch.unshift(v);if(!(liftLong&&ch.length>.45*G)){for(const q of ch)step(q);continue}}
-    // pen lift: next separate part, left to right; marks above the letter start from their top end
-    strokes.push(path);
-    const rest=pix.filter(i=>!vis[i]);if(!rest.length)break;
-    const mnx=Math.min(...rest.map(X));const part=[],st2=[rest.find(i=>X(i)===mnx)],sn=new Set(st2);
-    while(st2.length){const q=st2.pop();part.push(q);for(const r of nb(q))if(!vis[r]&&!sn.has(r)){sn.add(r);st2.push(r)}}
-    const ends=part.filter(q=>nb(q).filter(r=>sn.has(r)).length<=1);const pool=ends.length?ends:part;
-    let s0=pool.reduce((a,q)=>X(q)<X(a)?q:a);const top=pool.reduce((a,q)=>Y(q)<Y(a)?q:a);
-    if(m.y0+Y(top)/G<-1.15&&Y(s0)-Y(top)>.15*G)s0=top;
-    path=[s0];c=s0;d=null;vis[s0]=1;left--}
-  if(path.length)strokes.push(path);
+    strokes.push(path);path=null}
+  if(path&&path.length)strokes.push(path);
   return strokes.map(s=>s.map((q,i)=>{const a=s[Math.max(0,i-1)],b=s[Math.min(s.length-1,i+1)];
     return [m.x0+((X(a)+2*X(q)+X(b))/4+.5)/G,m.y0+((Y(a)+2*Y(q)+Y(b))/4+.5)/G]}));
 }
