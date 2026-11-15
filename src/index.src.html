@@ -90,7 +90,7 @@ summary{font-weight:800;cursor:pointer;min-height:28px}
 .badge{font-size:13px;font-weight:800;padding:4px 10px;border-radius:99px;background:var(--soft);color:var(--pen);white-space:nowrap}
 .pic{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:18px;padding:8px 12px}
 .emo{font-size:clamp(46px,9vh,76px);line-height:1;width:1.25em;text-align:center}
-.wl{flex:1;height:clamp(54px,9vh,80px);display:block}
+.wl{flex:1;height:clamp(64px,11vh,100px);display:block}
 .say{width:48px;height:48px;border-radius:14px;background:var(--soft);color:var(--pen);display:grid;place-items:center}
 .pad{flex:1;position:relative;background:var(--paper);border-radius:18px;overflow:hidden;min-height:240px;box-shadow:inset 0 0 0 1px light-dark(#0000000f,#ffffff10)}
 .pad canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
@@ -126,6 +126,7 @@ summary{font-weight:800;cursor:pointer;min-height:28px}
 <symbol id="i-er" viewBox="0 0 24 24"><path d="M3 16l9.5-9.5a2 2 0 012.8 0l3.2 3.2a2 2 0 010 2.8L12 19H7z"/><path d="M8.5 10.5l6 6M12 19h9"/></symbol>
 <symbol id="i-hint" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0012 3z"/></symbol>
 <symbol id="i-ok" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+<symbol id="i-next" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol>
 <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20l1.2-4.6L16 4.6a2 2 0 012.8 0l.6.6a2 2 0 010 2.8L8.6 18.8z"/><path d="M14 6.5l3.5 3.5"/></symbol>
 </svg>
 
@@ -160,6 +161,10 @@ summary{font-weight:800;cursor:pointer;min-height:28px}
         <div class="seg" role="group" id="strict">
           <button data-v="1.3">Douce</button><button data-v="1">Normale</button><button data-v="0.8">Exigeante</button>
         </div></div>
+      <div><div class="note">Validation des lettres</div>
+        <div class="seg" role="group" id="autoV">
+          <button data-v="1">Automatique</button><button data-v="0">Avec le bouton</button>
+        </div></div>
       <div class="row">
         <button class="ghost" id="unlock">Débloquer toutes les lettres</button>
         <button class="ghost danger" id="reset">Tout effacer</button>
@@ -184,7 +189,7 @@ summary{font-weight:800;cursor:pointer;min-height:28px}
   <div class="ctl">
     <button class="icon" id="undo" aria-label="Annuler le dernier trait"><svg class="i"><use href="#i-undo"/></svg></button>
     <button class="icon" id="clear" aria-label="Effacer"><svg class="i"><use href="#i-er"/></svg></button>
-    <button class="icon" id="hint" aria-label="Montrer la lettre"><svg class="i"><use href="#i-hint"/></svg></button>
+    <button class="icon" id="hint" aria-label="Montrer comment écrire la lettre"><svg class="i"><use href="#i-hint"/></svg></button>
     <button class="go ok" id="val"><svg class="i"><use href="#i-ok"/></svg>Valider</button>
   </div>
 </section>
@@ -231,7 +236,7 @@ const ALL=STAGES.map(s=>s.l).join('');
 
 /* ---------- state ---------- */
 const KEY='plume.v1';
-const fresh=()=>({v:1,stage:0,xp:0,streak:0,last:'',words:{},letters:{},strict:1,mode:'mots',theme:'tout'});
+const fresh=()=>({v:1,auto:true,stage:0,xp:0,streak:0,last:'',words:{},letters:{},strict:1,mode:'mots',theme:'tout'});
 let S=fresh();
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.v===1)S=Object.assign(fresh(),s)}catch(e){}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
@@ -282,11 +287,15 @@ function buildTpl(text,k){
   const m=maskCanvas(text,k,G,0,1.4),w=m.c.width,h=m.c.height,d=m.g.getImageData(0,0,w,h).data;
   const bin=new Uint8Array(w*h);for(let i=0;i<w*h;i++)bin[i]=d[i*4+3]>90?1:0;
   components(bin,w,h,4);
-  thin(bin,w,h);components(bin,w,h,3);
+  const part=new Int32Array(w*h).fill(-1),area=[];
+  for(let i=0;i<w*h;i++){if(!bin[i]||part[i]>=0)continue;const id=area.length,st=[i];part[i]=id;let n=0;
+    while(st.length){const q=st.pop();n++;const x=q%w,y=(q/w)|0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=w||ny>=h)continue;const r=ny*w+nx;if(bin[r]&&part[r]<0){part[r]=id;st.push(r)}}}
+    area.push(n)}
+  thin(bin,w,h);components(bin,w,h,1);
   const sk=[];const ends=[];
   for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(bin[y*w+x]){
     let n=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)if((dx||dy)&&bin[(y+dy)*w+x+dx])n++;
-    const p=[m.x0+(x+.5)/G,m.y0+(y+.5)/G];sk.push(p);if(n===1)ends.push(p)}
+    const p=[m.x0+(x+.5)/G,m.y0+(y+.5)/G,part[y*w+x]];sk.push(p);if(n===1)ends.push(p)}
   const body=ends.filter(p=>p[1]>-1.2),cand=body.length?body:ends.length?ends:sk;let start=cand[0]||[m.xs,0];
   for(const p of cand)if(p[0]<start[0]-.02||(Math.abs(p[0]-start[0])<.02&&p[1]>start[1]))start=p;
   // word-initial round letters have no lead-in: they start at the top right of the bowl, going anticlockwise
@@ -298,14 +307,62 @@ function buildTpl(text,k){
     else{const mn=Math.min(...body.map(p=>p[0])),mx=Math.max(...body.map(p=>p[0]));
       const bowl=body.filter(p=>p[0]<mn+.55*(mx-mn)),top=bowl.reduce((a,p)=>p[1]<a[1]?p:a),tg=[top[0]+.2,top[1]+.08];
       start=body.reduce((a,p)=>Math.hypot(p[0]-tg[0],p[1]-tg[1])<Math.hypot(a[0]-tg[0],a[1]-tg[1])?p:a)}}
+  // a t at the start of a word begins at the top of its stem, going down; its bar comes last
+  if(initial&&ch==='t'&&ends.length)start=ends.reduce((a,p)=>p[1]<a[1]?p:a);
   // direction of the first movement, for the arrow
   let nb=near(start,.38).filter(p=>Math.hypot(p[0]-start[0],p[1]-start[1])>.12);
   if(round)nb=nb.filter(p=>p[0]<start[0]-.02);
+  if(initial&&ch==='t')nb=nb.filter(p=>p[1]>start[1]+.05);
   let dir=null;if(nb.length){const v=[nb.reduce((a,p)=>a+p[0],0)/nb.length-start[0],nb.reduce((a,p)=>a+p[1],0)/nb.length-start[1]],n=Math.hypot(...v);if(n>.01)dir=[v[0]/n,v[1]/n]}
+  const order=orderStrokes(bin,w,h,m,start,dir,ch==='t');
+  const anim=order.map(s=>{const r=s.length>1?resample([s],.04):[s[0],s[0]];const cum=[0];for(let i=1;i<r.length;i++)cum.push(cum[i-1]+Math.hypot(r[i][0]-r[i-1][0],r[i][1]-r[i-1][1]));return {p:r,cum,L:Math.max(cum[cum.length-1],.05)}});
+  const big=new Set(area.map((a,i)=>a>=6?i:-1).filter(i=>i>=0));
   const pts=spaced(sk,.06),dots=spaced(sk,.17);
   let bx=[1e9,1e9,-1e9,-1e9];for(const p of pts){bx=[Math.min(bx[0],p[0]),Math.min(bx[1],p[1]),Math.max(bx[2],p[0]),Math.max(bx[3],p[1])]}
-  const t={pts,dots,start,dir,ends,bbox:bx,len:sk.length/G*1.08,xs:m.xs,xe:m.xe,ch:text[k]};
+  const t={pts,dots,start,dir,order,anim,big,ends,bbox:bx,len:sk.length/G*1.08,xs:m.xs,xe:m.xe,ch:text[k]};
   cache.set(key,t);return t;
+}
+
+/* stroke order: walk the skeleton pixel by pixel from the start, going as straight as possible,
+   retracing over drawn ink to reach what is left (stems of a, d, crossings of loops),
+   and lifting the pen for separate parts (dots, accents, the bar of t) */
+function orderStrokes(bin,w,h,m,start,dir0,liftLong){
+  const N=w*h,pix=[];for(let i=0;i<N;i++)if(bin[i])pix.push(i);if(!pix.length)return [];
+  const OFF=[[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
+  const nb=i=>{const x=i%w,y=(i/w)|0,o=[];for(const [dx,dy] of OFF){const nx=x+dx,ny=y+dy;if(nx>=0&&ny>=0&&nx<w&&ny<h&&bin[ny*w+nx])o.push(ny*w+nx)}return o};
+  const X=i=>i%w,Y=i=>(i/w)|0,unit=(x,y)=>{const l=Math.hypot(x,y)||1;return [x/l,y/l]};
+  const sx=(start[0]-m.x0)*G-.5,sy=(start[1]-m.y0)*G-.5;let sp=pix[0],bd=1e9;
+  for(const i of pix){const d=(X(i)-sx)**2+(Y(i)-sy)**2;if(d<bd){bd=d;sp=i}}
+  const vis=new Uint8Array(N),strokes=[];let path=[sp],c=sp,d=dir0?[dir0[0],dir0[1]]:null;vis[sp]=1;
+  const dirOf=()=>{const a=path[Math.max(0,path.length-6)];return path.length>2?unit(X(c)-X(a),Y(c)-Y(a)):d};
+  let left=pix.length-1;
+  const step=q=>{for(const r of nb(c))if(!vis[r]&&nb(r).includes(q)&&r!==q){vis[r]=1;left--}  // swallow staircase twins
+    if(!vis[q]){vis[q]=1;left--}path.push(q);c=q;d=dirOf()};
+  for(let guard=0;guard<5000&&left>0;guard++){
+    const fr=nb(c).filter(q=>!vis[q]);
+    if(fr.length){let best=fr[0],bs=-9;for(const q of fr){const u=unit(X(q)-X(c),Y(q)-Y(c)),sc=d?u[0]*d[0]+u[1]*d[1]:-u[0]+(Y(q)-Y(c))*.01;if(sc>bs){bs=sc;best=q}}
+      step(best);continue}
+    // drop leftover crumbs (1–3 px) that sit against drawn ink
+    {const seen=new Uint8Array(N);for(const i of pix){if(vis[i]||seen[i])continue;const cc=[],st=[i];seen[i]=1;
+      while(st.length){const q=st.pop();cc.push(q);for(const r of nb(q))if(!vis[r]&&!seen[r]){seen[r]=1;st.push(r)}}
+      if(cc.length<4&&cc.some(q=>nb(q).some(r=>vis[r]))){for(const q of cc){vis[q]=1;left--}}}}
+    if(left<=0)break;
+    // retrace through drawn pixels to the nearest undrawn one, if connected
+    const prev=new Int32Array(N).fill(-1),st=[c];prev[c]=c;let tgt=-1;
+    for(let h2=0;h2<st.length&&tgt<0;h2++){const q=st[h2];for(const r of nb(q)){if(prev[r]>=0)continue;prev[r]=q;if(!vis[r]){tgt=r;break}st.push(r)}}
+    if(tgt>=0){const ch=[];for(let v=tgt;v!==c;v=prev[v])ch.unshift(v);if(!(liftLong&&ch.length>.45*G)){for(const q of ch)step(q);continue}}
+    // pen lift: next separate part, left to right; marks above the letter start from their top end
+    strokes.push(path);
+    const rest=pix.filter(i=>!vis[i]);if(!rest.length)break;
+    const mnx=Math.min(...rest.map(X));const part=[],st2=[rest.find(i=>X(i)===mnx)],sn=new Set(st2);
+    while(st2.length){const q=st2.pop();part.push(q);for(const r of nb(q))if(!vis[r]&&!sn.has(r)){sn.add(r);st2.push(r)}}
+    const ends=part.filter(q=>nb(q).filter(r=>sn.has(r)).length<=1);const pool=ends.length?ends:part;
+    let s0=pool.reduce((a,q)=>X(q)<X(a)?q:a);const top=pool.reduce((a,q)=>Y(q)<Y(a)?q:a);
+    if(m.y0+Y(top)/G<-1.15&&Y(s0)-Y(top)>.15*G)s0=top;
+    path=[s0];c=s0;d=null;vis[s0]=1;left--}
+  if(path.length)strokes.push(path);
+  return strokes.map(s=>s.map((q,i)=>{const a=s[Math.max(0,i-1)],b=s[Math.min(s.length-1,i+1)];
+    return [m.x0+((X(a)+2*X(q)+X(b))/4+.5)/G,m.y0+((Y(a)+2*Y(q)+Y(b))/4+.5)/G]}));
 }
 
 /* ---------- scoring ---------- */
@@ -344,6 +401,9 @@ function score(strokes,tpl,free,strict,base){
   let up=0,upc=0,dn=0,dnc=0;
   T.forEach((p,j)=>{if(p[1]<-1.3){up++;upc+=best.cov[j]}if(p[1]>.35){dn++;dnc+=best.cov[j]}});
   best.why='';
+  {const tot={},hit={};T.forEach((p,j)=>{if(!tpl.big.has(p[2]))return;tot[p[2]]=(tot[p[2]]||0)+1;hit[p[2]]=(hit[p[2]]||0)+best.cov[j]});
+   const mp=ink.map(p=>[ct[0]+best.s*(p[0]-ci[0])+best.dx,ct[1]+best.s*(p[1]-ci[1])+best.dy]),lt=(.45*strict)**2;
+   for(const id in tot)if(hit[id]/tot[id]<.5&&!T.some(q=>q[2]==id&&mp.some(p=>(p[0]-q[0])**2+(p[1]-q[1])**2<lt))){best.F=Math.min(best.F,.5);best.why='part'}}
   if(up>=3&&upc/up<.45){best.F=Math.min(best.F,.5);best.why='haut'}
   if(dn>=3&&dnc/dn<.45){best.F=Math.min(best.F,.5);best.why='bas'}
   best.map=p=>[ct[0]+best.s*(p[0]-ci[0])+best.dx,ct[1]+best.s*(p[1]-ci[1])+best.dy];
@@ -372,6 +432,7 @@ function renderHome(){
   $('#heroT').textContent=S.mode==='phrases'?'Écrire une phrase entière':'Écrire en lettres liées';
   $('#heroP').textContent=S.mode==='phrases'?'Une phrase, lettre après lettre. Les espaces et les points se placent tout seuls.':`Une image, un mot, une lettre à la fois. Lettres du moment : ${st.l.split('').join(' ')}`;
   document.querySelectorAll('#strict button').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.v===S.strict));
+  document.querySelectorAll('#autoV button').forEach(b=>b.setAttribute('aria-pressed',(b.dataset.v==='1')===(S.auto!==false)));
 }
 $('#mMots').onclick=()=>{S.mode='mots';save();renderHome()};
 $('#mPhr').onclick=()=>{S.mode='phrases';save();renderHome()};
@@ -379,6 +440,7 @@ $('#themes').onclick=e=>{const b=e.target.closest('button');if(!b)return;S.theme
 $('#stages').onclick=e=>{const b=e.target.closest('.lt');if(b)letterLesson([b.dataset.l])};
 $('#rev').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.id==='revGo')reviewLesson();else letterLesson([b.dataset.l])};
 $('#strict').onclick=e=>{const b=e.target.closest('button');if(b){S.strict=+b.dataset.v;save();renderHome()}};
+$('#autoV').onclick=e=>{const b=e.target.closest('button');if(b){S.auto=b.dataset.v==='1';save();renderHome()}};
 $('#unlock').onclick=()=>{S.stage=STAGES.length-1;save();renderHome()};
 $('#reset').onclick=()=>dialog(`<h3>Tout effacer ?</h3><p>Les points, la série et les lettres apprises seront remis à zéro.</p><button class="go" style="background:var(--bad);box-shadow:none" id="rz">Oui, effacer</button><button class="ghost" id="cl">Annuler</button>`,{rz:()=>{S=fresh();save();closeDlg();renderHome()},cl:closeDlg});
 $('#start').onclick=()=>mainLesson();
@@ -414,7 +476,6 @@ function startItem(){
   const it=L.items[L.i];L.k=-1;L.done=[];L.errs=0;L.hints=0;L.tries=0;L.strokes=[];L.lvl=it.lvl;
   $('#emo').textContent=it.e||'';$('#emo').style.display=it.e?'':'none';
   $('#lvl').textContent=it.kind==='lettre'?'Lettre '+lower(it.t[0]):LV[it.lvl];
-  $('#hint').style.visibility=it.lvl>0?'visible':'hidden';
   $('#prog').style.width=L.i/L.items.length*100+'%';
   if(it.lvl===2||it.kind==='phrase')speak(it.t);
   nextLetter(true);
@@ -423,7 +484,7 @@ function nextLetter(first){
   const it=L.items[L.i];
   do{L.k++;if(L.k<it.t.length&&!writable(it.t[L.k]))L.done[L.k]=null}while(L.k<it.t.length&&!writable(it.t[L.k]));
   if(L.k>=it.t.length)return finishItem();
-  L.tries=0;L.strokes=[];L.showGuide=L.lvl===0;
+  L.tries=0;L.strokes=[];L.showGuide=L.lvl===0;L.demo=L.showGuide?{t0:performance.now()+350}:null;clearTimeout(autoT);
   cur=buildTpl(it.t,L.k);makeGhost();
   TOX=Math.min(1.1*U,W*.55-(cur.xs+cur.xe)/2*U);if(first)OX=TOX;
   drawWord();tick();
@@ -436,18 +497,23 @@ function makeGhost(){
 }
 function resize(){
   const r=cv.getBoundingClientRect();DPR=Math.min(2.5,window.devicePixelRatio||1);W=r.width;H=r.height;
-  cv.width=W*DPR;cv.height=H*DPR;U=Math.min(H/5.2,W/3.4);BY=(H-5.2*U)/2+3.2*U;
+  cv.width=W*DPR;cv.height=H*DPR;layout();
   const wr=wl.getBoundingClientRect();wl.width=wr.width*DPR;wl.height=wr.height*DPR;
+  if(L&&L.review)review(true);
   if(L&&cur){makeGhost();TOX=OX=Math.min(1.1*U,W*.55-(cur.xs+cur.xe)/2*U);drawWord()}
   draw();
 }
+function layout(){U=Math.min(H/5.2,W/3.4);BY=(H-5.2*U)/2+3.2*U}
 addEventListener('resize',()=>{if($('#lesson').classList.contains('on'))resize()});
 const probe=document.createElement('i');probe.style.display='none';document.body.appendChild(probe);
 let CC={};const css=v=>CC[v]||(probe.style.color=`var(${v})`,CC[v]=getComputedStyle(probe).color);
 const recolor=()=>{CC={};if(L&&cur){makeGhost();drawWord()}draw()};
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',recolor);
 new MutationObserver(recolor).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme','class','style']});
-function tick(){cancelAnimationFrame(anim);const f=()=>{OX+=(TOX-OX)*.2;if(Math.abs(TOX-OX)<.5)OX=TOX;draw();if(OX!==TOX||flash)anim=requestAnimationFrame(f)};anim=requestAnimationFrame(f)}
+function tick(){cancelAnimationFrame(anim);const f=()=>{
+  if(L&&L.tw){const w=L.tw,t=Math.min(1,(performance.now()-w.t0)/650),e=1-(1-t)**3;U=w.U0+(w.U1-w.U0)*e;OX=TOX=w.X0+(w.X1-w.X0)*e;BY=w.Y0+(w.Y1-w.Y0)*e;if(t>=1)L.tw=null}
+  else{OX+=(TOX-OX)*.2;if(Math.abs(TOX-OX)<.5)OX=TOX}
+  draw();if(OX!==TOX||flash||(L&&(L.demo||L.tw)))anim=requestAnimationFrame(f)};anim=requestAnimationFrame(f)}
 const sx=x=>OX+x*U,sy=y=>BY+y*U;
 function strokePath(g,s){g.beginPath();g.moveTo(sx(s[0][0]),sy(s[0][1]));if(s.length===1)g.lineTo(sx(s[0][0])+.1,sy(s[0][1]));for(const p of s)g.lineTo(sx(p[0]),sy(p[1]));g.stroke()}
 function draw(){
@@ -460,7 +526,7 @@ function draw(){
   g.strokeStyle=css('--margin');g.lineWidth=2;g.beginPath();g.moveTo(sx(-.9),0);g.lineTo(sx(-.9),H);g.stroke();
   if(!L||!L.done)return;const it=L.items[L.i];if(!it)return;
   // done letters
-  g.lineCap=g.lineJoin='round';g.strokeStyle=css('--pen');g.lineWidth=.17*U;g.globalAlpha=.85;
+  g.lineCap=g.lineJoin='round';g.strokeStyle=css('--pen');g.lineWidth=.17*U;g.globalAlpha=L.review?1:.85;
   g.font=`${2*U}px ${FONT}`;g.fillStyle=css('--pen');
   for(let j=0;j<L.done.length;j++){const d=L.done[j];if(d===null){const ch=it.t[j];if(ch.trim())g.fillText(ch,sx(meas(it.t.slice(0,j))),sy(0));continue}if(d)for(const s of d)strokePath(g,s)}
   g.globalAlpha=1;
@@ -473,6 +539,12 @@ function draw(){
       g.beginPath();g.moveTo(a,b);g.lineTo(c,d);g.moveTo(c,d);g.lineTo(c-(dx*.14-dy*.1)*U,d-(dy*.14+dx*.1)*U);g.moveTo(c,d);g.lineTo(c-(dx*.14+dy*.1)*U,d-(dy*.14-dx*.1)*U);g.stroke()}
     g.globalAlpha=1}
   else{g.strokeStyle=css('--bold');g.setLineDash([4,6]);g.lineWidth=2;g.beginPath();g.moveTo(sx(cur.xs),sy(-3.6));g.lineTo(sx(cur.xs),sy(1.4));g.stroke();g.setLineDash([])}
+  if(L.demo&&cur.anim.length){const sp=2.4,gap=.3,el=(performance.now()-L.demo.t0)/1000;
+    const dur=cur.anim.reduce((a,s)=>a+s.L/sp+gap,0),cyc=dur+1;const n=Math.floor(el/cyc);
+    if(n>=2)L.demo=null;else if(el>0){let rem=el-n*cyc,tip=null;g.strokeStyle=css('--ok');g.lineWidth=.1*U;g.lineCap=g.lineJoin='round';g.globalAlpha=.75;
+      for(const s of cur.anim){if(rem<=0)break;const len=Math.min(s.L,rem*sp);g.beginPath();g.moveTo(sx(s.p[0][0]),sy(s.p[0][1]));let i=1;
+        for(;i<s.p.length&&s.cum[i]<=len;i++)g.lineTo(sx(s.p[i][0]),sy(s.p[i][1]));tip=s.p[Math.min(i,s.p.length)-1];g.stroke();rem-=s.L/sp+gap}
+      g.globalAlpha=1;if(tip){g.fillStyle=css('--ok');g.beginPath();g.arc(sx(tip[0]),sy(tip[1]),.12*U,0,7);g.fill();g.fillStyle='#fff';g.beginPath();g.arc(sx(tip[0]),sy(tip[1]),.05*U,0,7);g.fill()}}}
   if(flash){const t=(performance.now()-flash.t)/1400;if(t>1)flash=null;else{g.globalAlpha=Math.min(1,2.2*(1-t));g.fillStyle=css('--bad');
     for(const p of cur.pts){g.beginPath();g.arc(sx(p[0]),sy(p[1]),.07*U,0,7);g.fill()}g.globalAlpha=1}}
   // current ink
@@ -481,8 +553,8 @@ function draw(){
 }
 function drawWord(){
   const it=L.items[L.i],g=wx,w=wl.width/DPR,h=wl.height/DPR;g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,w,h);
-  const full=meas(it.t);let fs=Math.min(h*.42,(w-8)/full*1.0);const u=fs;// u = unit in px (font size = 2u)
-  g.font=`${2*u}px ${FONT}`;const by=h*.66,x0=Math.max(4,(w-full*u)/2);
+  const full=meas(it.t),u=Math.min(h/3.75,(w-8)/full);// u = unit in px (font size = 2u); 2.3u above the baseline, 1.35u below
+  g.font=`${2*u}px ${FONT}`;const by=(h-3.65*u)/2+2.3*u,x0=Math.max(4,(w-full*u)/2);
   const xA=meas(it.t.slice(0,L.k))*u,xB=meas(it.t.slice(0,L.k+1))*u;
   const hide=L.lvl===2&&it.kind!=='lettre';
   g.save();g.beginPath();g.rect(0,0,x0+xA,h);g.clip();g.fillStyle=css('--pen');g.fillText(it.t,x0,by);g.restore();
@@ -492,31 +564,37 @@ function drawWord(){
     return}
   g.save();g.beginPath();g.rect(x0+xA,0,w,h);g.clip();g.fillStyle=css('--muted');g.globalAlpha=.55;g.fillText(it.t,x0,by);g.restore();
   g.save();g.beginPath();g.rect(x0+xA,0,xB-xA,h);g.clip();g.fillStyle=css('--pen');g.fillText(it.t,x0,by);g.restore();
-  g.fillStyle=css('--acc');g.fillRect(x0+xA+2,by+.35*u,Math.max(4,xB-xA-4),Math.max(3,.12*u));
+  if(L.k<it.t.length){g.fillStyle=css('--acc');g.fillRect(x0+xA+2,by+.35*u,Math.max(4,xB-xA-4),Math.max(3,.12*u))}
 }
 /* input */
 let active=null;
-cv.addEventListener('pointerdown',e=>{e.preventDefault();if(!L||!cur||L.busy||active!==null)return;active=e.pointerId;cv.setPointerCapture(e.pointerId);
+let autoT=0;
+cv.addEventListener('pointerdown',e=>{e.preventDefault();if(!L||!cur||L.busy||active!==null)return;active=e.pointerId;cv.setPointerCapture(e.pointerId);clearTimeout(autoT);L.demo=null;
   L.strokes.push([pt(e)]);draw()});
 cv.addEventListener('pointermove',e=>{if(e.pointerId!==active)return;const s=L.strokes[L.strokes.length-1];
   for(const ev of (e.getCoalescedEvents?e.getCoalescedEvents():[e])){const p=pt(ev),q=s[s.length-1];if(Math.hypot(p[0]-q[0],p[1]-q[1])>.025)s.push(p)}draw()});
-const end=e=>{if(e.pointerId===active)active=null};
+const end=e=>{if(e.pointerId!==active)return;active=null;if(S.auto!==false){clearTimeout(autoT);autoT=setTimeout(autoCheck,750)}};
 cv.addEventListener('pointerup',end);
 ['touchstart','touchmove','contextmenu','selectstart','dragstart'].forEach(t=>$('#pad').addEventListener(t,e=>e.preventDefault(),{passive:false}));
 document.addEventListener('selectstart',e=>e.preventDefault());cv.addEventListener('pointercancel',end);
 function pt(e){const r=cv.getBoundingClientRect();return [(e.clientX-r.left-OX)/U,(e.clientY-r.top-BY)/U]}
 $('#undo').onclick=()=>{if(L){L.strokes.pop();draw()}};
 $('#clear').onclick=()=>{if(L){L.strokes=[];draw()}};
-$('#hint').onclick=()=>{if(!L||!cur)return;L.hints++;L.showGuide=true;L.peek=true;drawWord();draw()};
+$('#hint').onclick=()=>{if(!L||!cur||L.review)return;if(L.lvl>0&&!L.showGuide)L.hints++;L.showGuide=true;L.peek=L.lvl>0;L.demo={t0:performance.now()};L.strokes=[];drawWord();tick()};
 $('#say').onclick=()=>L&&speak(L.items[L.i].t);
 $('#quit').onclick=()=>{L=null;cur=null;show('home')};
-$('#val').onclick=validate;
+$('#val').onclick=()=>L&&L.review?nextItem():validate();
 const msg=(t,cl)=>{const m=$('#msg');m.textContent=t;m.className='msg on '+cl;clearTimeout(msg.t);msg.t=setTimeout(()=>m.className='msg',1300)};
 const PRAISE=['Bravo !','Super !','Très bien !','Magnifique !','Oui !'];
-function validate(){
-  if(!L||!cur||L.busy)return;
+function autoCheck(){
+  if(!L||!cur||L.busy||L.review||active!==null||!L.strokes.length)return;
+  const free=!L.showGuide,r=score(L.strokes,cur,free,S.strict);
+  if(r.F>=PASS(free)+.04&&r.co>=.8&&!r.why)validate(r);
+}
+function validate(pre){
+  if(!L||!cur||L.busy||L.review)return;clearTimeout(autoT);
   if(!L.strokes.length){msg('Écris la lettre avec ton doigt','');return}
-  const it=L.items[L.i],free=!L.showGuide,r=score(L.strokes,cur,free,S.strict);
+  const it=L.items[L.i],free=!L.showGuide,r=pre&&pre.F!==undefined?pre:score(L.strokes,cur,free,S.strict);
   const ch=lower(cur.ch),st=ls(ch);st.n++;
   if(r.F>=PASS(free)){
     st.e=st.e*.7+Math.min(1,r.F)*.3;
@@ -525,9 +603,9 @@ function validate(){
     L.busy=true;setTimeout(()=>{L.busy=false;nextLetter()},380);
   }else{
     st.f++;st.e=st.e*.7+Math.max(0,r.F)*.3;L.tries++;L.errs++;chime(0);
-    msg(r.why==='haut'?(/[éèêàâùûîïô]/.test(ch)?'N’oublie pas l’accent !':/[ij]/.test(ch)?'N’oublie pas le point !':'Monte plus haut !'):r.why==='bas'?'Descends plus bas !':'Essaie encore','bad');
+    msg(r.why==='part'?(/[ij]/.test(ch)?'N’oublie pas le point !':/[éèêàâùûîïôëœ]/.test(ch)&&!/[ç]/.test(ch)?'N’oublie pas l’accent !':ch==='t'?'N’oublie pas la barre du t !':ch==='ç'?'N’oublie pas la cédille !':'Il manque un morceau !'):r.why==='haut'?(/[éèêàâùûîïô]/.test(ch)?'N’oublie pas l’accent !':/[ij]/.test(ch)?'N’oublie pas le point !':'Monte plus haut !'):r.why==='bas'?'Descends plus bas !':'Essaie encore','bad');
     flash={t:performance.now()};L.strokes=[];
-    if(L.tries>=2&&!L.showGuide){L.showGuide=true}
+    if(L.tries>=2&&!L.showGuide){L.showGuide=true;L.demo={t0:performance.now()+700}}
     if(L.tries>=4){L.done[L.k]=null;msg('On continue !','');L.busy=true;setTimeout(()=>{L.busy=false;nextLetter()},700);}
     tick();
   }
@@ -540,7 +618,22 @@ function finishItem(){
     if(good){st.ok++;st.bad=0;const max=it.kind==='phrase'?1:2;if(st.ok>=2){if(st.lvl<max){st.lvl++;st.ok=0}else st.m=1}}
     else if(L.errs>=3){st.ok=0;st.bad=1;if(L.errs>=5&&st.lvl>0)st.lvl--}}
   save();
-  L.busy=true;setTimeout(()=>{L.busy=false;L.i++;if(L.i>=L.items.length)endLesson();else startItem()},650);
+  L.busy=true;setTimeout(()=>{L.busy=false;review()},450);
+}
+// admire the whole word: zoom out so it fits the page
+function review(instant){
+  const it=L.items[L.i],pts=[];
+  L.done.forEach((d,j)=>{if(d===null){if(it.t[j].trim()){const a=meas(it.t.slice(0,j)),b=meas(it.t.slice(0,j+1));pts.push([a,-1],[b,0])}}else if(d)for(const s of d)pts.push(...s)});
+  if(!pts.length)return nextItem();
+  const b=bbox(pts),bw=Math.max(1,b[2]-b[0]),bh=Math.max(1.2,b[3]-b[1]);
+  const Z=Math.min(Math.min(H/5.2,W/3.4)*1.1,W*.84/bw,H*.66/bh);
+  const t={U1:Z,X1:W/2-(b[0]+b[2])/2*Z,Y1:H/2-(b[1]+b[3])/2*Z};
+  if(!L.review){L.review=true;$('#val').innerHTML='Continuer <svg class="i"><use href="#i-next"/></svg>';msg(PRAISE[Math.random()*5|0],'ok');if(it.kind!=='lettre')speak(it.t)}
+  if(instant){U=t.U1;OX=TOX=t.X1;BY=t.Y1;L.tw=null;draw()}else{L.tw={t0:performance.now(),U0:U,X0:OX,Y0:BY,...t};tick()}
+}
+function nextItem(){
+  if(!L)return;L.review=false;L.tw=null;$('#val').innerHTML='<svg class="i"><use href="#i-ok"/></svg>Valider';layout();
+  L.i++;if(L.i>=L.items.length)endLesson();else startItem();
 }
 function endLesson(){
   $('#prog').style.width='100%';
