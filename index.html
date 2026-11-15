@@ -315,15 +315,27 @@ function buildTpl(text,k){
   if(initial&&ch==='t')nb=nb.filter(p=>p[1]>start[1]+.05);
   let dir=null;if(nb.length){const v=[nb.reduce((a,p)=>a+p[0],0)/nb.length-start[0],nb.reduce((a,p)=>a+p[1],0)/nb.length-start[1]],n=Math.hypot(...v);if(n>.01)dir=[v[0]/n,v[1]/n]}
   const RT=ROUTES[ch]||ROUTES[{'ë':'e','é':'e','è':'e','ê':'e','à':'a','â':'a','ù':'u','û':'u','î':'i','ï':'i','ô':'o'}[ch]]||null;if(RT&&RT.s&&initial)start=[m.xs+RT.s[0],RT.s[1]];
+  const pts=spaced(sk,.06),dots=spaced(sk,.17);
   let order;
   if(RT&&RT.pts){order=RT.pts.map(st=>st.map(q=>[m.xs+q[0],q[1]]));const f=order[0];
-    if(!initial){const d0=Math.hypot(start[0]-f[0][0],start[1]-f[0][1]);if(d0>.12)f.unshift([start[0],start[1]])}
     order=order.map(st=>{let q=st;for(let it=0;it<2;it++){const o=[q[0]];for(let i=0;i<q.length-1;i++){const a=q[i],b=q[i+1];o.push([.75*a[0]+.25*b[0],.75*a[1]+.25*b[1]],[.25*a[0]+.75*b[0],.25*a[1]+.75*b[1]])}o.push(q[q.length-1]);q=o}return q})}
   else order=orderStrokes(bin,w,h,m,start,dir,ch==='t',RT&&RT.r.map(q=>q&&q!=='top'?[m.xs+q[0],q[1],q[2]]:q));
+  // inside a word the font swaps in a joined form of the letter: reuse the checked path of the letter on its own,
+  // lined up with this form, without its own lead-in, reached by the joining stroke from the previous letter
+  if(!initial){const iso=buildTpl(text[k],0);
+    if(iso.order.length&&pts.length){
+      const near=(x,y)=>{let b=9;for(const q of pts){const d=(q[0]-x)**2+(q[1]-y)**2;if(d<b)b=d}return Math.sqrt(b)};
+      const smp=[];iso.order.forEach(st=>{for(let i=0;i<st.length;i+=3)smp.push(st[i])});
+      let best=1e9,bdx=0;for(let dx=-.5;dx<=.501;dx+=.025){let sum=0;for(const p of smp)sum+=Math.min(.3,near(p[0]+m.xs+dx,p[1]));if(sum<best-1e-9){best=sum;bdx=dx}}
+      const sh=iso.order.map(st=>st.map(p=>[p[0]+m.xs+bdx,p[1]]));
+      let f=sh[0],i0=0;while(i0<f.length-2&&near(f[i0][0],f[i0][1])>.13)i0++;
+      {let bi=i0,bd=1e9;for(let i=i0;i<i0+f.length*.3&&i<f.length-2;i++){const d=Math.hypot(f[i][0]-start[0],f[i][1]-start[1]);if(d<bd){bd=d;bi=i}}if(bd<.2)i0=bi}  // join lands on the lead-in: start there
+      f=f.slice(i0);
+      const con=(orderStrokes(bin,w,h,m,start,null,false,[[f[0][0],f[0][1]]])[0])||[start];
+      order=[[...con,...f],...sh.slice(1)]}}
   {const f=order[0];if(f&&f.length>3){const q=f[Math.min(9,f.length-1)];const v=[q[0]-f[0][0],q[1]-f[0][1]],n=Math.hypot(...v);if(n>.05)dir=[v[0]/n,v[1]/n]}start=f?f[0]:start}
   const anim=order.map(s=>{const r=s.length>1?resample([s],.04):[s[0],s[0]];const cum=[0];for(let i=1;i<r.length;i++)cum.push(cum[i-1]+Math.hypot(r[i][0]-r[i-1][0],r[i][1]-r[i-1][1]));return {p:r,cum,L:Math.max(cum[cum.length-1],.05)}});
   const big=new Set(area.map((a,i)=>a>=6?i:-1).filter(i=>i>=0));
-  const pts=spaced(sk,.06),dots=spaced(sk,.17);
   let bx=[1e9,1e9,-1e9,-1e9];for(const p of pts){bx=[Math.min(bx[0],p[0]),Math.min(bx[1],p[1]),Math.max(bx[2],p[0]),Math.max(bx[3],p[1])]}
   const t={pts,dots,start,dir,order,anim,big,ends,bbox:bx,len:sk.length/G*1.08,xs:m.xs,xe:m.xe,ch:text[k]};
   cache.set(key,t);return t;
@@ -565,6 +577,11 @@ function resize(){
 }
 function layout(){U=Math.min(H/5.2,W/3.4);BY=(H-5.2*U)/2+3.2*U}
 addEventListener('resize',()=>{if($('#lesson').classList.contains('on'))resize()});
+// the pad can change size without the window doing so (fonts and pictures loading, the address bar sliding away):
+// re-measure whenever it does, so ink stays under the finger
+{let lastW=0,lastH=0;const ro=new ResizeObserver(()=>{if(!$('#lesson').classList.contains('on'))return;const r=cv.getBoundingClientRect(),q=wl.getBoundingClientRect();
+  if(Math.abs(r.width-lastW)<.5&&Math.abs(r.height-lastH)<.5&&Math.abs(q.width*DPR-wl.width)<1)return;lastW=r.width;lastH=r.height;resize()});
+ ro.observe($('#pad'));ro.observe(wl)}
 const probe=document.createElement('i');probe.style.display='none';document.body.appendChild(probe);
 let CC={};const css=v=>CC[v]||(probe.style.color=`var(${v})`,CC[v]=getComputedStyle(probe).color);
 const recolor=()=>{CC={};if(L&&cur){makeGhost();drawWord()}draw()};
