@@ -8,6 +8,22 @@ Mobile web app for French schoolchildren to practise joined-up cursive (*lettres
 - Per-letter tracking: weak letters are shown under *À revoir* and come back more often. Points, stars and a daily streak.
 - Progress is stored in the browser (localStorage) only.
 
+## Custom word lists
+
+Settings → *Listes de mots perso*. Lists can be opened as files (for example from a repository folder in the Files app) or loaded from a GitHub repository, including a private one. For a private repository, use a fine-grained personal access token with read-only *Contents* access to that repository only; it is stored in the browser on that device.
+
+One `.txt` file per list, one word or sentence per line, with an optional picture after a bar: an emoji, or the file name of a photo in the same folder (photos are shrunk and kept on the device).
+
+```
+# Title of the list
+chat 🐱
+maison | 🏠
+vélo | velo.jpg
+Le chat dort. | 🐱
+```
+
+`.csv` / `.tsv` (word, picture) and `.json` (`{"title": "…", "items": [{"t": "…", "image": "…"}]}`) also work. Custom lists appear as themes and are not limited by the letters unlocked so far.
+
 ## Build
 
 `index.html` is self-contained. Edit `src/index.src.html`, then run:

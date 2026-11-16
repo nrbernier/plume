@@ -80,6 +80,8 @@ summary{font-weight:800;cursor:pointer;min-height:28px}
 .set .seg{margin:0}
 .row{display:flex;gap:8px;flex-wrap:wrap}
 .danger{color:var(--bad)}
+.set .ghost{background:var(--soft)}
+.lrow .ghost{background:var(--card)}
 .note{font-size:13px;color:var(--muted)}
 /* lesson */
 #lesson{flex-direction:column;height:100dvh;padding:max(8px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));gap:8px;max-width:900px;margin:0 auto}
@@ -90,6 +92,17 @@ summary{font-weight:800;cursor:pointer;min-height:28px}
 .badge{font-size:13px;font-weight:800;padding:4px 10px;border-radius:99px;background:var(--soft);color:var(--pen);white-space:nowrap}
 .pic{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:18px;padding:8px 12px}
 .emo{font-size:clamp(46px,9vh,76px);line-height:1;width:1.25em;text-align:center}
+.emo img{width:1.25em;height:1.25em;object-fit:cover;border-radius:14px;display:block}
+.themes .pic-th{width:22px;height:22px;border-radius:6px;object-fit:cover}
+.filebtn{display:inline-flex;align-items:center;cursor:pointer}
+.lists{display:grid;gap:6px}
+.lrow{display:flex;align-items:center;gap:8px;background:var(--soft);border-radius:12px;padding:6px 10px}
+.lrow b{flex:1;font-weight:800}.lrow small{color:var(--muted)}
+.form{display:grid;gap:8px;margin-top:8px}
+.form label{display:grid;gap:2px;font-size:13px;color:var(--muted)}
+.form input{font:inherit;font-size:16px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);min-height:44px}
+pre.fmt{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin:0;white-space:pre-wrap}
+.inner{background:transparent;padding:0;margin-top:6px}
 .wl{flex:1;height:clamp(64px,11vh,100px);display:block}
 .say{width:48px;height:48px;border-radius:14px;background:var(--soft);color:var(--pen);display:grid;place-items:center}
 .pad{flex:1;position:relative;background:var(--paper);border-radius:18px;overflow:hidden;min-height:240px;box-shadow:inset 0 0 0 1px light-dark(#0000000f,#ffffff10)}
@@ -165,11 +178,39 @@ summary{font-weight:800;cursor:pointer;min-height:28px}
         <div class="seg" role="group" id="autoV">
           <button data-v="1">Automatique</button><button data-v="0">Avec le bouton</button>
         </div></div>
+      <div><div class="note">Listes de mots perso</div>
+        <div class="row">
+          <label class="ghost filebtn">Ouvrir des fichiers<input type="file" id="lfile" multiple accept=".txt,.csv,.tsv,.json,text/plain,image/*" hidden></label>
+          <button class="ghost" id="ghLoad">Charger depuis GitHub</button>
+        </div>
+        <p class="note" id="lmsg" aria-live="polite"></p>
+        <div class="lists" id="lists"></div>
+        <details class="inner"><summary>Dépôt GitHub</summary>
+          <form class="form" id="ghForm" autocomplete="off">
+            <label>Propriétaire<input name="owner" placeholder="nom d’utilisateur"></label>
+            <label>Dépôt<input name="repo" placeholder="nom du dépôt"></label>
+            <label>Branche (vide = par défaut)<input name="branch"></label>
+            <label>Dossier (vide = racine)<input name="folder"></label>
+            <label>Jeton (vide si le dépôt est public)<input name="token" type="password"></label>
+            <div class="row"><button class="ghost" type="submit">Enregistrer</button><button class="ghost danger" type="button" id="ghForget">Oublier le jeton</button></div>
+            <p class="note">Pour un dépôt privé : un jeton « fine-grained » avec seulement l’accès en lecture au contenu de ce dépôt. Il reste sur cet appareil.</p>
+          </form>
+        </details>
+        <details class="inner"><summary>Format des listes</summary>
+          <p class="note">Un fichier .txt par liste, un mot ou une phrase par ligne. Une image en option après une barre : un émoji ou le nom d’une photo du même dossier.</p>
+<pre class="fmt"># Ma liste
+chat 🐱
+maison | 🏠
+vélo | velo.jpg
+Le chat dort. | 🐱</pre>
+          <p class="note">Aussi : .csv / .tsv (mot, image) ou .json. Les listes perso ignorent le déblocage des lettres.</p>
+        </details>
+      </div>
       <div class="row">
         <button class="ghost" id="unlock">Débloquer toutes les lettres</button>
         <button class="ghost danger" id="reset">Tout effacer</button>
       </div>
-      <p class="note">Les progrès sont gardés sur cet appareil uniquement. Les images sont des émojis du système.</p>
+      <p class="note">Les progrès et les listes perso sont gardés sur cet appareil uniquement.</p>
     </div>
   </details>
 </main>
@@ -483,15 +524,85 @@ function score(strokes,tpl,free,strict,base){
 }
 let TOL=.17,MD=3;const PASS=free=>free?.6:.66;
 
+/* ---------- custom word lists (files or a GitHub repository) ---------- */
+const LKEY='plume.lists';let CL={};
+try{CL=JSON.parse(localStorage.getItem(LKEY))||{}}catch(e){CL={}}
+const saveLists=()=>{try{localStorage.setItem(LKEY,JSON.stringify(CL));return true}catch(e){lmsg('Plus de place sur cet appareil : retire une liste ou utilise des images plus petites.');return false}};
+const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const lmsg=t=>{$('#lmsg').textContent=t};
+const IMG=/\.(png|jpe?g|webp|gif|heic)$/i;
+function parseLine(l,csv){
+  let t=l,pic='';const parts=l.split(csv?/\s*[|\t;,]\s*/:/\s*[|\t;]\s*/);
+  if(parts.length>1){t=parts[0];pic=parts.slice(1).find(x=>x)||''}
+  else{let m=l.match(/^(.*?)\s+((?:\p{Extended_Pictographic}|\p{Regional_Indicator})[\p{Extended_Pictographic}\p{Emoji_Modifier}\u200d\ufe0f\p{Regional_Indicator}]*)$/u)||l.match(/^(.*?)\s+(\S+\.(?:png|jpe?g|webp|gif))$/i);if(m){t=m[1];pic=m[2]}}
+  t=t.trim().replace(/\s+/g,' ');pic=pic.trim();
+  return IMG.test(pic)?{t,img:pic}:{t,e:pic}}
+function parseList(text,name){
+  let title=name.split('/').pop().replace(/\.[^.]+$/,'').replace(/[-_]+/g,' ');const items=[];
+  if(/\.json$/i.test(name)||/^\s*[\[{]/.test(text)){
+    let j;try{j=JSON.parse(text)}catch(e){throw new Error(name+' : JSON illisible')}
+    const arr=Array.isArray(j)?j:(j.items||j.mots||j.words||[]);if(!Array.isArray(j)&&(j.title||j.titre))title=j.title||j.titre;
+    for(const r of arr){if(typeof r==='string')items.push(parseLine(r));else if(r){const t=String(r.t||r.mot||r.word||r.texte||r.text||'').trim(),pic=String(r.image||r.img||r.emoji||r.e||'').trim();items.push(IMG.test(pic)?{t,img:pic}:{t,e:pic})}}}
+  else{const csv=/\.csv$/i.test(name);for(const raw of text.split(/\r?\n/)){const l=raw.trim();if(!l)continue;
+    if(l.startsWith('#')){const h=l.replace(/^#+/,'').trim();if(!items.length&&h)title=h;continue}
+    if(/^(mot|word|texte)\s*[,;|\t]/i.test(l))continue;items.push(parseLine(l,csv))}}
+  const ok=items.filter(i=>i.t&&[...i.t].some(writable));
+  if(!ok.length)throw new Error(name+' : aucun mot trouvé');
+  return {title,items:ok}}
+async function shrink(blob){   // small square-ish picture, stored on the device
+  const bmp=await createImageBitmap(blob),k=Math.min(1,240/Math.max(bmp.width,bmp.height)),c=document.createElement('canvas');
+  c.width=Math.max(1,Math.round(bmp.width*k));c.height=Math.max(1,Math.round(bmp.height*k));const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bmp,0,0,c.width,c.height);
+  return c.toDataURL('image/jpeg',.82)}
+async function addFiles(files){
+  files=[...files];const imgs=new Map(files.filter(f=>IMG.test(f.name)||/^image\//.test(f.type)).map(f=>[f.name.toLowerCase(),f]));
+  const texts=files.filter(f=>!imgs.has(f.name.toLowerCase()));let n=0;const errs=[],missing=new Set();
+  for(const f of texts){try{const l=parseList(await f.text(),f.name);
+      for(const it of l.items)if(it.img){const im=imgs.get(it.img.split('/').pop().toLowerCase());if(im){try{it.img=await shrink(im)}catch(e){missing.add(it.img);delete it.img}}else{missing.add(it.img);delete it.img}}
+      CL['f:'+l.title]={title:l.title,items:l.items,from:'fichier',at:Date.now()};n++}catch(e){errs.push(e.message)}}
+  saveLists();renderHome();
+  lmsg([n?`${n} liste${n>1?'s':''} ajoutée${n>1?'s':''}.`:'',missing.size?`Images non trouvées (choisis-les avec la liste) : ${[...missing].slice(0,4).join(', ')}`:'',...errs].filter(Boolean).join(' '))}
+$('#lfile').onchange=e=>{addFiles(e.target.files);e.target.value=''};
+const gh=()=>S.gh||{};
+async function ghFetch(path,as){
+  const h={Accept:as==='json'?'application/vnd.github+json':'application/vnd.github.raw+json'};if(gh().token)h.Authorization='Bearer '+gh().token;
+  let r;try{r=await fetch('https://api.github.com'+path,{headers:h,cache:'no-store'})}catch(e){throw new Error('Impossible de joindre GitHub depuis cette page.')}
+  if(!r.ok)throw new Error(r.status===401?'GitHub refuse le jeton (expiré ou mal copié ?).':r.status===404?'Introuvable : vérifie le propriétaire, le dépôt, le dossier et l’accès du jeton.':r.status===403?'GitHub refuse la demande (limite ou droits).':'Erreur GitHub '+r.status+'.');
+  return as==='json'?r.json():as==='blob'?r.blob():r.text()}
+async function ghLoad(){
+  const g=gh();if(!g.owner||!g.repo){lmsg('Indique d’abord le dépôt GitHub ci-dessous.');document.querySelector('#ghForm').closest('details').open=true;return}
+  lmsg('Chargement…');
+  try{const base=`/repos/${encodeURIComponent(g.owner)}/${encodeURIComponent(g.repo)}`,ref=g.branch?`?ref=${encodeURIComponent(g.branch)}`:'';
+    const enc=p=>p.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    const dir=await ghFetch(`${base}/contents/${enc(g.folder||'')}${ref}`,'json');
+    const files=(Array.isArray(dir)?dir:[dir]).filter(f=>f.type==='file'&&/\.(txt|csv|tsv|json)$/i.test(f.name));
+    if(!files.length){lmsg('Aucun fichier .txt, .csv, .tsv ou .json dans ce dossier.');return}
+    let n=0;const errs=[];
+    for(const f of files){try{const l=parseList(await ghFetch(`${base}/contents/${enc(f.path)}${ref}`),f.name),folder=f.path.split('/').slice(0,-1).join('/');
+        for(const it of l.items)if(it.img){try{it.img=await shrink(await ghFetch(`${base}/contents/${enc((folder?folder+'/':'')+it.img)}${ref}`,'blob'))}catch(e){errs.push('image '+it.img+' : '+e.message);delete it.img}}
+        CL['g:'+f.path]={title:l.title,items:l.items,from:'GitHub',at:Date.now()};n++}catch(e){errs.push(e.message)}}
+    saveLists();renderHome();lmsg(`${n} liste${n>1?'s':''} à jour depuis GitHub.`+(errs.length?' '+errs.slice(0,3).join(' '):''))}
+  catch(e){lmsg(e.message)}}
+$('#ghLoad').onclick=ghLoad;
+$('#ghForm').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target),g={};for(const k of ['owner','repo','branch','folder','token'])g[k]=String(f.get(k)||'').trim().replace(/^\/+|\/+$/g,'');
+  if(!g.token&&gh().token&&f.get('token')==='')g.token=gh().token;S.gh=g;save();lmsg('Dépôt enregistré.');renderHome()};
+$('#ghForget').onclick=()=>{if(S.gh){S.gh.token='';save()}lmsg('Jeton oublié.');renderHome()};
+$('#lists').onclick=e=>{const b=e.target.closest('[data-rm]');if(!b)return;delete CL[b.dataset.rm];if(S.theme==='perso:'+b.dataset.rm)S.theme='tout';saveLists();save();renderHome()};
+const customItems=id=>(CL[id]?.items||[]).map(x=>({t:x.t,e:x.e||'',img:x.img||'',th:'perso:'+id,stage:0,kind:x.t.includes(' ')?'phrase':'mot'}));
+
 /* ---------- home ---------- */
-function themeCount(th){return WORDS.filter(w=>w.stage<=S.stage&&(th==='tout'||w.th===th)).length}
+function themeCount(th){if(th.startsWith('perso:'))return customItems(th.slice(6)).length;return WORDS.filter(w=>w.stage<=S.stage&&(th==='tout'||w.th===th)).length}
 function renderHome(){
   $('#xp').textContent=S.xp;$('#streak').textContent=S.streak;
   $('#mMots').setAttribute('aria-pressed',S.mode==='mots');$('#mPhr').setAttribute('aria-pressed',S.mode==='phrases');
   const nS=SENT.filter(s=>s.stage<=S.stage).length;$('#mPhr').disabled=!nS;if(!nS&&S.mode==='phrases')S.mode='mots';
   const th=Object.entries(THEMES);
-  $('#themes').innerHTML=[['tout',['✏️','Tout']],...th].map(([k,[e,n]])=>{const c=themeCount(k);
-    return `<button data-th="${k}" aria-pressed="${S.theme===k}" ${c||k==='tout'?'':'disabled'}>${e} ${n} <small>${c}</small></button>`}).join('');
+  if(S.theme.startsWith('perso:')&&!CL[S.theme.slice(6)])S.theme='tout';
+  const mine=Object.entries(CL).map(([id,l])=>{const p=l.items.find(x=>x.img||x.e);return ['perso:'+id,[p?(p.img?`<img class="pic-th" src="${p.img}" alt="">`:esc(p.e)):'⭐',esc(l.title)]]});
+  $('#themes').innerHTML=[['tout',['✏️','Tout']],...th,...mine].map(([k,[e,n]])=>{const c=themeCount(k);
+    return `<button data-th="${esc(k)}" aria-pressed="${S.theme===k}" ${c||k==='tout'?'':'disabled'}>${e} ${n} <small>${c}</small></button>`}).join('');
+  $('#lists').innerHTML=Object.entries(CL).map(([id,l])=>`<div class="lrow"><b>${esc(l.title)}</b><small>${l.items.length} · ${esc(l.from)}</small><button class="ghost danger" data-rm="${esc(id)}">Retirer</button></div>`).join('');
+  const g=gh(),fm=$('#ghForm');if(fm&&document.activeElement?.form!==fm){for(const k of ['owner','repo','branch','folder'])fm.elements[k].value=g[k]||'';fm.elements.token.value='';fm.elements.token.placeholder=g.token?'enregistré':''}
+  $('#ghForget').hidden=!g.token;
   $('#themes').style.opacity=S.mode==='phrases'?.45:1;
   $('#stages').innerHTML=STAGES.map((st,i)=>{const open=i<=S.stage;
     const words=WORDS.filter(w=>w.stage===i),done=words.filter(w=>ws(w.t).lvl>=1||ws(w.t).m).length,need=Math.ceil(words.length*.5);
@@ -527,6 +638,11 @@ function itemWeight(w){const st=ws(w.t),weak=new Set(weakLetters());let v=1;
 function mainLesson(){
   let items;
   if(S.mode==='phrases'){items=pickWeighted(SENT.filter(s=>s.stage<=S.stage),2,itemWeight).map(s=>({...s,lvl:Math.min(ws(s.t).lvl,1)}))}
+  else if(S.theme.startsWith('perso:')){const pool=customItems(S.theme.slice(6));
+    const fresh=pool.filter(w=>!ws(w.t).seen),old=pool.filter(w=>ws(w.t).seen);
+    items=[...pickWeighted(fresh,Math.min(2,fresh.length),itemWeight),...pickWeighted(old,4,itemWeight)].slice(0,4);
+    if(items.length<4)items.push(...pickWeighted(pool.filter(w=>!items.includes(w)),4-items.length,itemWeight));
+    let ph=0;items=items.filter(w=>w.kind!=='phrase'||++ph<=2).map(w=>({...w,lvl:w.kind==='phrase'?Math.min(ws(w.t).lvl,1):ws(w.t).lvl}))}
   else{let pool=WORDS.filter(w=>w.stage<=S.stage&&(S.theme==='tout'||w.th===S.theme));if(!pool.length)pool=WORDS.filter(w=>w.stage<=S.stage);
     const fresh=pool.filter(w=>!ws(w.t).seen),old=pool.filter(w=>ws(w.t).seen);
     items=[...pickWeighted(fresh,Math.min(2,fresh.length),itemWeight),...pickWeighted(old,4,itemWeight)].slice(0,4);
@@ -546,7 +662,7 @@ function run(items){if(!items.length)return;L={items,i:0,xp:0,perfect:0};show('l
 function show(id){document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===id));if(id==='lesson')resize();else renderHome()}
 function startItem(){
   const it=L.items[L.i];L.k=-1;L.done=[];L.errs=0;L.hints=0;L.tries=0;L.strokes=[];L.lvl=it.lvl;
-  $('#emo').textContent=it.e||'';$('#emo').style.display=it.e?'':'none';
+  const em=$('#emo');em.textContent=it.img?'':(it.e||'');if(it.img){const im=new Image();im.src=it.img;im.alt='';em.appendChild(im)}em.style.display=it.img||it.e?'':'none';
   $('#lvl').textContent=it.kind==='lettre'?'Lettre '+lower(it.t[0]):LV[it.lvl];
   $('#prog').style.width=L.i/L.items.length*100+'%';
   if(it.lvl===2||it.kind==='phrase')speak(it.t);
