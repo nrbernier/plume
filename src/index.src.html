@@ -587,7 +587,9 @@ $('#ghForm').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target),g={}
   if(!g.token&&gh().token&&f.get('token')==='')g.token=gh().token;S.gh=g;save();lmsg('Dépôt enregistré.');renderHome()};
 $('#ghForget').onclick=()=>{if(S.gh){S.gh.token='';save()}lmsg('Jeton oublié.');renderHome()};
 $('#lists').onclick=e=>{const b=e.target.closest('[data-rm]');if(!b)return;delete CL[b.dataset.rm];if(S.theme==='perso:'+b.dataset.rm)S.theme='tout';saveLists();save();renderHome()};
-const customItems=id=>(CL[id]?.items||[]).map(x=>({t:x.t,e:x.e||'',img:x.img||'',th:'perso:'+id,stage:0,kind:x.t.includes(' ')?'phrase':'mot'}));
+const customItems=id=>(CL[id]?.items||[]).map(x=>({t:x.t,e:x.e||'',img:x.img||'',th:'perso:'+id,stage:0,kind:isSentence(x.t)?'phrase':'mot'}));
+// a sentence starts with a capital and has several words, or ends with punctuation; "un voyage" stays a word
+const isSentence=t=>/[.!?…]$/.test(t)||(/^\p{Lu}/u.test(t)&&t.trim().split(/\s+/).length>2);
 
 /* ---------- home ---------- */
 function themeCount(th){if(th.startsWith('perso:'))return customItems(th.slice(6)).length;return WORDS.filter(w=>w.stage<=S.stage&&(th==='tout'||w.th===th)).length}
